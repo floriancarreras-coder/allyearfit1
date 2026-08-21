@@ -32,15 +32,26 @@ app.post(
         throw new Error("STRIPE_PRICE_ID n'est pas défini dans l'environnement.");
       }
 
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        line_items: [{ price: PRICE_ID, quantity: 1 }],
-        customer_email: email,
-        customer_creation: "always",
-        success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: CANCEL_URL,
-        metadata: { prenom, nom, source: "landing-all-year-fit" },
-      });
+ const session = await stripe.checkout.sessions.create({
+  mode: "payment",
+  line_items: [
+    {
+      price_data: {
+        currency: "cad", // ou "usd" selon ta devise
+        product_data: {
+          name: "All Year Fit",
+        },
+        unit_amount: 1700, // Montant en cents (1700 = 17,00 $)
+      },
+      quantity: 1,
+    },
+  ],
+  customer_email: email,
+  customer_creation: "always",
+  success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: CANCEL_URL,
+  metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
+});
 
       res.redirect(303, session.url);
     } catch (err) {

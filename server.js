@@ -9,14 +9,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const PORT = process.env.PORT || 3000;
-const PRICE_ID = process.env.STRIPE_PRICE_ID;
 
-// Définition d'un domaine de secours si les variables d'environnement manquent
-const DEFAULT_DOMAIN = "https://massokin.com"; // Remplacez par votre domaine principal
-const SUCCESS_URL = process.env.SUCCESS_URL || `${DEFAULT_DOMAIN}/merci`;
-const CANCEL_URL = process.env.CANCEL_URL || `${DEFAULT_DOMAIN}/#offer`;
+// URL de secours en cas de variable manquante dans Render
+const SUCCESS_URL = process.env.SUCCESS_URL || "https://www.kinqc.ca/merci";
+const CANCEL_URL = process.env.CANCEL_URL || "https://www.kinqc.ca/#offer";
 
-// 1. Réception du formulaire de la landing page + création de la session Stripe
 app.post(
   "/create-checkout-session",
   express.urlencoded({ extended: true }),
@@ -28,34 +25,30 @@ app.post(
     }
 
     try {
-      if (!PRICE_ID) {
-        throw new Error("STRIPE_PRICE_ID n'est pas défini dans l'environnement.");
-      }
-
- const session = await stripe.checkout.sessions.create({
-  mode: "payment",
-  line_items: [
-    {
-      price_data: {
-        currency: "cad", // ou "usd" selon ta devise
-        product_data: {
-          name: "All Year Fit",
-        },
-        unit_amount: 1700, // Montant en cents (1700 = 17,00 $)
-      },
-      quantity: 1,
-    },
-  ],
-  customer_email: email,
-  customer_creation: "always",
-  success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
-  cancel_url: CANCEL_URL,
-  metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
-});
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency: "cad",
+              product_data: {
+                name: "All Year Fit",
+              },
+              unit_amount: 1700, // 17,00 $ CAD
+            },
+            quantity: 1,
+          },
+        ],
+        customer_email: email,
+        customer_creation: "always",
+        success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: CANCEL_URL,
+        metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
+      });
 
       res.redirect(303, session.url);
     } catch (err) {
-      console.error("Erreur création session Stripe :", err.message);
+      console.error("Détail de l'erreur Stripe :", err.message);
       res.redirect(303, `${CANCEL_URL}?erreur=paiement_indisponible`);
     }
   }

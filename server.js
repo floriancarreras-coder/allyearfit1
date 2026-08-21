@@ -14,11 +14,11 @@ const SUCCESS_URL = process.env.SUCCESS_URL || "https://www.kinqc.ca/merci";
 const CANCEL_URL = process.env.CANCEL_URL || "https://www.kinqc.ca/#offer";
 
 // -------------------------------------------------------------
-// FONCTION SYNCHRONISATION SYSTEME.IO (Contact + Tag)
+// FONCTION SYNCHRONISATION SYSTEME.IO (Contact + Tag intelligent)
 // -------------------------------------------------------------
 async function synchroniserSystemeIO(email, prenom = "", nom = "") {
   const apiKey = process.env.SYSTEME_IO_API_KEY;
-  const tagId = process.env.SYSTEME_IO_TAG_ID;
+  const tagIdentifier = process.env.SYSTEME_IO_TAG_ID; // Ex: "paye-allyearfit" ou un numéro ID
 
   if (!apiKey) {
     console.log("⚠️ SYSTEME_IO_API_KEY non configurée dans Render.");
@@ -26,9 +26,37 @@ async function synchroniserSystemeIO(email, prenom = "", nom = "") {
   }
 
   try {
+    // 1. Trouver l'ID numérique du tag (même si un nom de texte est fourni)
+    let numericTagId = null;
+    if (tagIdentifier) {
+      if (!isNaN(tagIdentifier)) {
+        numericTagId = Number(tagIdentifier);
+      } else {
+        console.log(`🔍 Recherche de l'ID numérique pour le tag "${tagIdentifier}"...`);
+        const resTags = await fetch("https://api.systeme.io/api/tags", {
+          headers: { "X-API-Key": apiKey },
+        });
+        if (resTags.ok) {
+          const tagsData = await resTags.json();
+          const tagsList = Array.isArray(tagsData) ? tagsData : (tagsData.items || []);
+          const foundTag = tagsList.find(
+            (t) => t.name?.toLowerCase() === tagIdentifier.toLowerCase()
+          );
+          if (foundTag) {
+            numericTagId = foundTag.id;
+            console.log(`✅ ID numérique du tag "${tagIdentifier}" trouvé : ${numericTagId}`);
+          } else {
+            console.error(`❌ Aucun tag nommé "${tagIdentifier}" trouvé sur Systeme.io.`);
+          }
+        } else {
+          console.error("❌ Impossible de récupérer la liste des tags de Systeme.io :", await resTags.text());
+        }
+      }
+    }
+
+    // 2. Créer ou retrouver le contact sur Systeme.io
     let contactId = null;
 
-    // A. Créer le contact dans Systeme.io
     const resCreate = await fetch("https://api.systeme.io/api/contacts", {
       method: "POST",
       headers: {
@@ -47,41 +75,42 @@ async function synchroniserSystemeIO(email, prenom = "", nom = "") {
       contactId = data.id;
       console.log(`✅ Contact créé sur Systeme.io (ID: ${contactId})`);
     } else {
-      // Si le contact existe déjà
-      const resSearch = await fetch(`https://api.systeme.io/api/contacts?email=${encodeURIComponent(email)}`, {
-        headers: { "X-API-Key": apiKey },
-      });
+      console.log(`ℹ️ Contact déjà présent ou création échouée. Recherche du contact par email...`);
+      const resSearch = await fetch(
+        `https://api.systeme.io/api/contacts?email=${encodeURIComponent(email)}`,
+        { headers: { "X-API-Key": apiKey } }
+      );
       if (resSearch.ok) {
         const searchData = await resSearch.json();
-        const items = searchData.items || searchData;
-        if (Array.isArray(items) && items.length > 0) {
+        const items = Array.isArray(searchData) ? searchData : (searchData.items || []);
+        if (items.length > 0) {
           contactId = items[0].id;
           console.log(`✅ Contact existant retrouvé sur Systeme.io (ID: ${contactId})`);
         }
       }
     }
 
-    // B. Attribuer le Tag au contact
-    if (contactId && tagId) {
-      const payloadTag = isNaN(tagId) ? { tagId: tagId } : { tagId: Number(tagId) };
+    // 3. Appliquer le tag au contact
+    if (contactId && numericTagId) {
       const resTag = await fetch(`https://api.systeme.io/api/contacts/${contactId}/tags`, {
         method: "POST",
         headers: {
           "X-API-Key": apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payloadTag),
+        body: JSON.stringify({ tagId: numericTagId }),
       });
 
       if (resTag.ok) {
-        console.log(`🏷️ Tag (${tagId}) attribué avec succès au contact sur Systeme.io`);
+        console.log(`🏷️ Tag (${numericTagId}) attribué avec succès au contact ${email}`);
       } else {
-        const errText = await resTag.text();
-        console.error("❌ Erreur lors de l'ajout du tag Systeme.io :", errText);
+        console.error("❌ Erreur lors de l'ajout du tag :", await resTag.text());
       }
+    } else {
+      console.error(`⚠️ Impossible d'ajouter le tag : contactId=${contactId}, tagId=${numericTagId}`);
     }
   } catch (err) {
-    console.error("❌ Erreur lors de la synchronisation Systeme.io :", err.message);
+    console.error("❌ Erreur globale Systeme.io :", err.message);
   }
 }
 
@@ -115,10 +144,10 @@ app.post(
 
       console.log(`💳 Paiement confirmé pour : ${emailClient}`);
 
-      // 1. Inscription du contact + Tag sur Systeme.io
+      // 1. Inscription + Tag sur Systeme.io
       await synchroniserSystemeIO(emailClient, prenomClient, nomClient);
 
-      // 2. Envoi du courriel d'accès avec Resend
+      // 2. Courriel d'accès avec Resend
       try {
         await resend.emails.send({
           from: process.env.EMAIL_FROM || "Massokin <florian.carreras@massokin.com>",
@@ -134,9 +163,9 @@ app.post(
             <p>À très vite !</p>
           `,
         });
-        console.log(`✉️ Courriel d'accès envoyé avec succès à ${emailClient}`);
+        console.log(`✉️ Courriel envoyé à ${emailClient}`);
       } catch (emailErr) {
-        console.error("❌ Erreur lors de l'envoi Resend :", emailErr);
+        console.error("❌ Erreur envoi Resend :", emailErr);
       }
     }
 

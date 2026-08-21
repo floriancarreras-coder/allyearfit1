@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 3000;
 const PRICE_ID = process.env.STRIPE_PRICE_ID; // prix "All Year Fit" à 17,00 $ CAD
 const SUCCESS_URL = process.env.SUCCESS_URL; // ex. https://allyearfit.com/merci
 const CANCEL_URL = process.env.CANCEL_URL; // ex. https://allyearfit.com/#offer
+app.post('/create-checkout-session', async (req, res) => {
+  // Si la variable d'environnement n'existe pas, on utilise l'URL de votre site par défaut
+  const YOUR_DOMAIN = process.env.FRONTEND_URL || 'https://www.kinqc.ca';
 // 1. Réception du formulaire de la landing page + création de la session Stripe
 app.post(
 "/create-checkout-session",

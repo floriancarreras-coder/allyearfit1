@@ -1,9 +1,9 @@
 {
-  "name": "massokin-backend",
+  "name": "allyearfit1",
   "version": "1.0.0",
   "description": "Backend Node/Express pour les paiements Stripe Checkout de Massokin",
   "main": "server.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"

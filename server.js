@@ -194,9 +194,9 @@ app.post(
             price_data: {
               currency: "cad",
               product_data: {
-                name: "All Year Fit",
+                name: "Programme en ligne sur 8 semaines all Year Fit - accès à vie ",
               },
-              unit_amount: 1700, // 17,00 $ CAD
+              unit_amount: 9700, // 97,00 $ CAD
             },
             quantity: 1,
           },

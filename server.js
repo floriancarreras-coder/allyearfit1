@@ -187,26 +187,27 @@ app.post(
     }
 
     try {
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        line_items: [
-          {
-            price_data: {
-              currency: "cad",
-              product_data: {
-                name: "Programme en ligne sur 8 semaines all Year Fit - accès à vie ",
-              },
-              unit_amount: 9700, // 97,00 $ CAD
-            },
-            quantity: 1,
-          },
-        ],
-        customer_email: email,
-        customer_creation: "always",
-        success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: CANCEL_URL,
-        metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
-      });
+     const session = await stripe.checkout.sessions.create({
+  mode: "payment",
+  line_items: [
+    {
+      price_data: {
+        currency: "cad",
+        product_data: {
+          name: "Programme en ligne sur 8 semaines all Year Fit - accès à vie ",
+        },
+        unit_amount: 9700, // 97,00 $ CAD
+      },
+      quantity: 1,
+    },
+  ],
+  customer_email: email,
+  customer_creation: "always",
+  allow_promotion_codes: true, // 👈 ajoute cette ligne
+  success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: CANCEL_URL,
+  metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
+});
 
       res.redirect(303, session.url);
     } catch (err) {

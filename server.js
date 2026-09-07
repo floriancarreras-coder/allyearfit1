@@ -18,15 +18,14 @@ const CANCEL_URL = process.env.CANCEL_URL || "https://www.kinqc.ca/#offer";
 // -------------------------------------------------------------
 async function synchroniserSystemeIO(email, prenom = "", nom = "") {
   const apiKey = process.env.SYSTEME_IO_API_KEY;
-  const tagIdentifier = process.env.SYSTEME_IO_TAG_ID; // Ex: "paye-allyearfit" ou un numéro ID
+  const tagIdentifier = process.env.SYSTEME_IO_TAG_ID;
 
   if (!apiKey) {
-    console.log("⚠️ SYSTEME_IO_API_KEY non configurée dans Render.");
+    console.log("⚠️ SYSTEME_IO_API_KEY non configurée.");
     return;
   }
 
   try {
-    // 1. Trouver l'ID numérique du tag (même si un nom de texte est fourni)
     let numericTagId = null;
     if (tagIdentifier) {
       if (!isNaN(tagIdentifier)) {
@@ -54,9 +53,7 @@ async function synchroniserSystemeIO(email, prenom = "", nom = "") {
       }
     }
 
-    // 2. Créer ou retrouver le contact sur Systeme.io
     let contactId = null;
-
     const resCreate = await fetch("https://api.systeme.io/api/contacts", {
       method: "POST",
       headers: {
@@ -90,7 +87,6 @@ async function synchroniserSystemeIO(email, prenom = "", nom = "") {
       }
     }
 
-    // 3. Appliquer le tag au contact
     if (contactId && numericTagId) {
       const resTag = await fetch(`https://api.systeme.io/api/contacts/${contactId}/tags`, {
         method: "POST",
@@ -115,7 +111,7 @@ async function synchroniserSystemeIO(email, prenom = "", nom = "") {
 }
 
 // -------------------------------------------------------------
-// 1. WEBHOOK STRIPE (Reçoit la confirmation de paiement)
+// 1. WEBHOOK STRIPE (Placé AVANT les parsers JSON généraux)
 // -------------------------------------------------------------
 app.post(
   "/webhook/stripe",
@@ -144,10 +140,8 @@ app.post(
 
       console.log(`💳 Paiement confirmé pour : ${emailClient}`);
 
-      // 1. Inscription + Tag sur Systeme.io
       await synchroniserSystemeIO(emailClient, prenomClient, nomClient);
 
-      // 2. Courriel d'accès avec Resend
       try {
         await resend.emails.send({
           from: process.env.EMAIL_FROM || "Massokin <florian.carreras@massokin.com>",
@@ -173,48 +167,48 @@ app.post(
   }
 );
 
+// Middleware pour décoder les requêtes HTML/Formulaires
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
 // -------------------------------------------------------------
 // 2. CRÉATION DE LA SESSION DE PAIEMENT
 // -------------------------------------------------------------
-app.post(
-  "/create-checkout-session",
-  express.urlencoded({ extended: true }),
-  async (req, res) => {
-    const { prenom = "", nom = "", email = "" } = req.body;
+app.post("/create-checkout-session", async (req, res) => {
+  const { prenom = "", nom = "", email = "" } = req.body;
 
-    if (!email) {
-      return res.redirect(303, `${CANCEL_URL}?erreur=email_manquant`);
-    }
-
-    try {
-     const session = await stripe.checkout.sessions.create({
-  mode: "payment",
-  line_items: [
-    {
-      price_data: {
-        currency: "cad",
-        product_data: {
-          name: "Programme en ligne sur 8 semaines all Year Fit - accès à vie ",
-        },
-        unit_amount: 9700, // 97,00 $ CAD
-      },
-      quantity: 1,
-    },
-  ],
-  customer_email: email,
-  customer_creation: "always",
-  allow_promotion_codes: true, // 👈 ajoute cette ligne
-  success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
-  cancel_url: CANCEL_URL,
-  metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
-});
-
-      res.redirect(303, session.url);
-    } catch (err) {
-      console.error("Erreur création session Stripe :", err.message);
-      res.redirect(303, `${CANCEL_URL}?erreur=paiement_indisponible`);
-    }
+  if (!email) {
+    return res.redirect(303, `${CANCEL_URL}?erreur=email_manquant`);
   }
-);
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "cad",
+            product_data: {
+              name: "Programme en ligne sur 8 semaines All Year Fit - accès à vie",
+            },
+            unit_amount: 9700, // 97,00 $ CAD
+          },
+          quantity: 1,
+        },
+      ],
+      customer_email: email,
+      customer_creation: "always",
+      allow_promotion_codes: true,
+      success_url: `${SUCCESS_URL}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: CANCEL_URL,
+      metadata: { prenom, nom, source: "https://www.kinqc.ca/allyearfit" },
+    });
+
+    res.redirect(303, session.url);
+  } catch (err) {
+    console.error("Erreur création session Stripe :", err.message);
+    res.redirect(303, `${CANCEL_URL}?erreur=paiement_indisponible`);
+  }
+});
 
 app.listen(PORT, () => console.log(`Serveur All Year Fit lancé sur le port ${PORT}`));

@@ -191,7 +191,7 @@ app.post("/create-checkout-session", async (req, res) => {
             product_data: {
               name: "Programme en ligne sur 8 semaines All Year Fit - accès à vie",
             },
-            unit_amount: 9700, // 97,00 $ CAD
+            unit_amount: 1700, // 17,00 $ CAD
           },
           quantity: 1,
         },
